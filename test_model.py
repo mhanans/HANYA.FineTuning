@@ -24,7 +24,8 @@ class SafeLogitsProcessor(LogitsProcessor):
 
 # Generate response function
 def generate_response(prompt, max_new_tokens=100, temperature=0.7):
-    inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512)
+    formatted_prompt = f"{prompt.strip()} [SEP]"
+    inputs = tokenizer(formatted_prompt, return_tensors="pt", truncation=True, max_length=512)
     inputs = {key: val.to(device) for key, val in inputs.items()}
     logits_processor = LogitsProcessorList([SafeLogitsProcessor()])
     
@@ -33,9 +34,10 @@ def generate_response(prompt, max_new_tokens=100, temperature=0.7):
             outputs = model.generate(
                 **inputs,
                 max_new_tokens=max_new_tokens,
-                temperature=temperature,
-                top_p=0.9,
-                do_sample=True,
+                temperature=0.5,
+                top_p=0.7,
+                do_sample=False,
+                num_beams=5,
                 pad_token_id=tokenizer.pad_token_id,
                 eos_token_id=tokenizer.eos_token_id,
                 logits_processor=logits_processor,
