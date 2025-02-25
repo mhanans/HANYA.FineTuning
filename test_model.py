@@ -6,7 +6,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, LogitsProcessor, L
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Load model and tokenizer
-model_path = "./fine_tuned_model"
+model_path = "./fine_tuned_model_merged"
 tokenizer = AutoTokenizer.from_pretrained(model_path)
 model = AutoModelForCausalLM.from_pretrained(model_path)
 model.to(device)
