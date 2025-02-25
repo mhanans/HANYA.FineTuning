@@ -1,63 +1,63 @@
+import torch
 from datasets import load_dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments, DataCollatorForLanguageModeling
-import torch
 from peft import get_peft_model, LoraConfig, TaskType
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Replace with your model's path or identifier.
-model_name_or_path = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
+# Load model and tokenizer
+model_name = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForCausalLM.from_pretrained(model_name)
+model.to(device)
+if tokenizer.pad_token is None:
+    tokenizer.pad_token = tokenizer.eos_token
 
-# Load the tokenizer and model.
-tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
-model = AutoModelForCausalLM.from_pretrained(model_name_or_path)
-
-# Configure LoRA (tweak parameters based on your model and dataset)
+# Configure LoRA
 lora_config = LoraConfig(
-    r=8,
+    r=16,
     lora_alpha=32,
-    target_modules=["q_proj", "v_proj"],  # Adjust according to your model architecture
-    lora_dropout=0.1,
+    target_modules=["q_proj", "k_proj", "v_proj"],
+    lora_dropout=0.05,
     bias="none",
     task_type=TaskType.CAUSAL_LM,
 )
-
-# Wrap your model with the PEFT model.
 model = get_peft_model(model, lora_config)
-print("LoRA configuration applied.")
 
+# Load dataset
+dataset = load_dataset('json', data_files="custom_knowledge.jsonl", split='train')
 
-
-# Load the custom fine-tuning dataset (JSONL format).
-dataset = load_dataset('json', data_files='custom_knowledge.jsonl', split='train')
-
-# Preprocessing: Concatenate prompt and completion.
+# Preprocess dataset
 def preprocess_function(examples):
-    # Use zip to iterate over the paired values from the lists
-    texts = [p + " " + c for p, c in zip(examples["prompt"], examples["completion"])]
-    return tokenizer(texts, truncation=True, max_length=256)
+    texts = [f"{p.strip()} [SEP] {c.strip()}" for p, c in zip(examples["prompt"], examples["completion"])]
+    tokenized = tokenizer(texts, truncation=True, max_length=512, padding="max_length", return_tensors="pt")
+    tokenized["labels"] = tokenized["input_ids"].clone()
+    return tokenized
 
+tokenized_dataset = dataset.map(preprocess_function, batched=True, remove_columns=dataset.column_names)
 
-tokenized_dataset = dataset.map(preprocess_function, batched=True)
-
-# Create a data collator for causal language modeling (no masked LM).
+# Data collator
 data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
 
-# Define training arguments.
+# Training arguments
 training_args = TrainingArguments(
     output_dir="./fine_tuned_model",
     overwrite_output_dir=True,
-    num_train_epochs=3,
-    per_device_train_batch_size=1,  # Lower batch size to reduce memory usage
-    gradient_accumulation_steps=2,    # Optionally, use gradient accumulation to simulate a larger batch size
-    save_steps=100,
+    num_train_epochs=5,
+    per_device_train_batch_size=2,
+    gradient_accumulation_steps=4,
+    save_steps=200,
     save_total_limit=2,
-    logging_steps=10,
-    learning_rate=2e-5,
-    fp16=torch.cuda.is_available(),  # Mixed precision may help on GPU, but if using CPU, you might disable it.
+    logging_steps=20,
+    learning_rate=5e-5,
+    warmup_steps=100,
+    fp16=torch.cuda.is_available(),
+    optim="adamw_torch",
+    evaluation_strategy="no",
+    report_to="none",
 )
 
-
-# Initialize the Trainer.
+# Initialize trainer
 trainer = Trainer(
     model=model,
     args=training_args,
@@ -65,9 +65,12 @@ trainer = Trainer(
     data_collator=data_collator,
 )
 
-# Start fine-tuning.
+# Start fine-tuning
 trainer.train()
 
-# Save the fine-tuned model.
-trainer.save_model("./fine_tuned_model")
-print("Fine-tuning complete. Model saved to ./fine_tuned_model")
+# Save the model
+model.save_pretrained("./fine_tuned_model")
+tokenizer.save_pretrained("./fine_tuned_model")
+model = model.merge_and_unload()
+model.save_pretrained("./fine_tuned_model_merged")
+tokenizer.save_pretrained("./fine_tuned_model_merged")
