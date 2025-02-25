@@ -1,12 +1,13 @@
 import torch
-import torch._dynamo  # Import to disable Dynamo
 from datasets import load_dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments, DataCollatorForLanguageModeling
 from transformers.trainer_callback import TrainerCallback
 
-# Disable Torch Dynamo to avoid the circular import issue
+# Disable Torch Dynamo globally via environment variable (set before running the script)
+# export TORCH_DYNAMO_DISABLE=1
+
+# Alternatively, disable Torch Dynamo errors in code
 torch._dynamo.config.suppress_errors = True
-torch._dynamo.config.optimize = False
 
 # Set device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
