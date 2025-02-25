@@ -3,10 +3,8 @@ from datasets import load_dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments, DataCollatorForLanguageModeling
 from transformers.trainer_callback import TrainerCallback
 
-# Disable Torch Dynamo globally via environment variable (set before running the script)
-# export TORCH_DYNAMO_DISABLE=1
-
-# Alternatively, disable Torch Dynamo errors in code
+# Disable Torch Dynamo globally to avoid potential issues (set as environment variable or in code)
+# export TORCH_DYNAMO_DISABLE=1  # Uncomment and set in terminal before running, or use below
 torch._dynamo.config.suppress_errors = True
 
 # Set device
@@ -18,17 +16,25 @@ model_name = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
 print(f"Loading model from Hugging Face: {model_name}")
 
 # Load tokenizer and model
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float32 if device.type == "cpu" else None)
-model.to(device)
-if tokenizer.pad_token is None:
-    tokenizer.pad_token = tokenizer.eos_token
-    print("Pad token set to EOS token.")
+try:
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float32 if device.type == "cpu" else None)
+    model.to(device)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+        print("Pad token set to EOS token.")
+except Exception as e:
+    print(f"Error loading model or tokenizer: {str(e)}")
+    raise
 
 # Load dataset
 dataset_path = "custom_knowledge.jsonl"
-dataset = load_dataset('json', data_files=dataset_path, split='train')
-print(f"Dataset loaded with {len(dataset)} examples.")
+try:
+    dataset = load_dataset('json', data_files=dataset_path, split='train')
+    print(f"Dataset loaded with {len(dataset)} examples.")
+except Exception as e:
+    print(f"Error loading dataset: {str(e)}")
+    raise
 
 # Preprocess dataset
 def preprocess_function(examples):
@@ -43,12 +49,16 @@ def preprocess_function(examples):
     tokenized["labels"] = tokenized["input_ids"].clone()
     return tokenized
 
-tokenized_dataset = dataset.map(
-    preprocess_function,
-    batched=True,
-    remove_columns=dataset.column_names,
-    desc="Tokenizing dataset",
-)
+try:
+    tokenized_dataset = dataset.map(
+        preprocess_function,
+        batched=True,
+        remove_columns=dataset.column_names,
+        desc="Tokenizing dataset",
+    )
+except Exception as e:
+    print(f"Error tokenizing dataset: {str(e)}")
+    raise
 
 # Data collator
 data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
@@ -73,15 +83,15 @@ class CheckNanInfCallback(TrainerCallback):
             print("Continuing training despite nan/inf. Investigate hyperparameters or dataset.")
             torch.save(model.state_dict(), f"model_state_step_{state.global_step}.pt")
 
-# Training arguments
+# Training arguments with adjusted save settings
 training_args = TrainingArguments(
-    output_dir="./fine_tuned_model",
+    output_dir="/home/apoc/Finetune/fine_tuned_model",  # Ensure this path has enough space and permissions
     overwrite_output_dir=True,
     num_train_epochs=3,
     per_device_train_batch_size=1 if device.type == "cpu" else 2,
     gradient_accumulation_steps=2,
-    save_steps=1000,
-    save_total_limit=2,
+    save_steps=1000,  # Reduced save frequency to minimize I/O issues
+    save_total_limit=1,  # Limit number of saved checkpoints to save space
     logging_steps=20,
     learning_rate=1e-5,
     warmup_steps=100,
@@ -93,19 +103,31 @@ training_args = TrainingArguments(
 )
 
 # Initialize trainer with the custom callback
-trainer = Trainer(
-    model=model,
-    args=training_args,
-    train_dataset=tokenized_dataset,
-    data_collator=data_collator,
-    callbacks=[CheckNanInfCallback()],
-)
+try:
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=tokenized_dataset,
+        data_collator=data_collator,
+        callbacks=[CheckNanInfCallback()],
+    )
+except Exception as e:
+    print(f"Error initializing trainer: {str(e)}")
+    raise
 
 # Start fine-tuning
 print("Starting fine-tuning...")
-trainer.train()
+try:
+    trainer.train()
+except Exception as e:
+    print(f"Error during training: {str(e)}")
+    raise
 
-# Save the model
-model.save_pretrained("./fine_tuned_model")
-tokenizer.save_pretrained("./fine_tuned_model")
-print("Fine-tuning completed. Model and tokenizer saved to ./fine_tuned_model")
+# Save the model manually after training to ensure success
+try:
+    model.save_pretrained("./fine_tuned_model")
+    tokenizer.save_pretrained("./fine_tuned_model")
+    print("Fine-tuning completed. Model and tokenizer saved to ./fine_tuned_model")
+except Exception as e:
+    print(f"Error saving model: {str(e)}")
+    raise
