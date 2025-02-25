@@ -1,7 +1,6 @@
 import torch
 from datasets import load_dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments, DataCollatorForLanguageModeling
-from peft import get_peft_model, LoraConfig, TaskType
 from transformers.trainer_callback import TrainerCallback
 
 # Set device
@@ -19,20 +18,6 @@ model.to(device)
 if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
     print("Pad token set to EOS token.")
-
-# Configure LoRA
-lora_config = LoraConfig(
-    r=4,                     # Lower rank for stability
-    lora_alpha=8,            # Match or slightly exceed r
-    target_modules=["q_proj", "k_proj", "v_proj"],
-    lora_dropout=0.2,        # Higher dropout for regularization
-    bias="none",
-    task_type=TaskType.CAUSAL_LM,
-)
-
-model = get_peft_model(model, lora_config)
-model.print_trainable_parameters()
-print("LoRA configuration applied successfully.")
 
 # Load dataset
 dataset_path = "custom_knowledge.jsonl"
@@ -88,14 +73,14 @@ training_args = TrainingArguments(
     overwrite_output_dir=True,
     num_train_epochs=3,
     per_device_train_batch_size=1 if device.type == "cpu" else 2,
-    gradient_accumulation_steps=2,  # Reduced for stability
+    gradient_accumulation_steps=2,
     save_steps=200,
     save_total_limit=2,
     logging_steps=20,
-    learning_rate=1e-5,            # Lower learning rate
+    learning_rate=1e-5,
     warmup_steps=100,
     fp16=torch.cuda.is_available(),
-    max_grad_norm=0.5,             # More aggressive gradient clipping
+    max_grad_norm=0.5,
     optim="adamw_torch",
     evaluation_strategy="no",
     report_to="none",
@@ -117,7 +102,4 @@ trainer.train()
 # Save the model
 model.save_pretrained("./fine_tuned_model")
 tokenizer.save_pretrained("./fine_tuned_model")
-model = model.merge_and_unload()
-model.save_pretrained("./fine_tuned_model_merged")
-tokenizer.save_pretrained("./fine_tuned_model_merged")
-print("Fine-tuning completed. Model and tokenizer saved to ./fine_tuned_model_merged")
+print("Fine-tuning completed. Model and tokenizer saved to ./fine_tuned_model")
