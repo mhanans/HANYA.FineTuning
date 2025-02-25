@@ -1,7 +1,12 @@
 import torch
+import torch._dynamo  # Import to disable Dynamo
 from datasets import load_dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments, DataCollatorForLanguageModeling
 from transformers.trainer_callback import TrainerCallback
+
+# Disable Torch Dynamo to avoid the circular import issue
+torch._dynamo.config.suppress_errors = True
+torch._dynamo.config.optimize = False
 
 # Set device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -67,14 +72,14 @@ class CheckNanInfCallback(TrainerCallback):
             print("Continuing training despite nan/inf. Investigate hyperparameters or dataset.")
             torch.save(model.state_dict(), f"model_state_step_{state.global_step}.pt")
 
-# Training arguments with adjusted save frequency
+# Training arguments
 training_args = TrainingArguments(
     output_dir="./fine_tuned_model",
     overwrite_output_dir=True,
     num_train_epochs=3,
     per_device_train_batch_size=1 if device.type == "cpu" else 2,
     gradient_accumulation_steps=2,
-    save_steps=1000,  # Reduce save frequency to minimize I/O
+    save_steps=1000,
     save_total_limit=2,
     logging_steps=20,
     learning_rate=1e-5,
