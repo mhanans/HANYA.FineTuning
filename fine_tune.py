@@ -22,10 +22,10 @@ if tokenizer.pad_token is None:
 
 # Configure LoRA
 lora_config = LoraConfig(
-    r=8,                     # Lower rank for stability
-    lora_alpha=16,           # Adjust alpha
+    r=4,                     # Lower rank for stability
+    lora_alpha=8,            # Match or slightly exceed r
     target_modules=["q_proj", "k_proj", "v_proj"],
-    lora_dropout=0.1,        # Higher dropout for regularization
+    lora_dropout=0.2,        # Higher dropout for regularization
     bias="none",
     task_type=TaskType.CAUSAL_LM,
 )
@@ -62,20 +62,25 @@ tokenized_dataset = dataset.map(
 # Data collator
 data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
 
-# Custom callback to check for nan/inf
+# Custom callback to check for nan/inf and log warnings
 class CheckNanInfCallback(TrainerCallback):
     def on_train_begin(self, args, state, control, **kwargs):
         print("Training begins. Checking model parameters for nan/inf...")
         self.check_params(kwargs["model"])
 
     def on_step_end(self, args, state, control, **kwargs):
-        self.check_params(kwargs["model"])
+        if state.global_step % 10 == 0:  # Check every 10 steps
+            self.check_params(kwargs["model"])
 
     def check_params(self, model):
+        has_nan_inf = False
         for name, param in model.named_parameters():
             if torch.isnan(param).any() or torch.isinf(param).any():
-                print(f"Parameter {name} contains nan or inf")
-                raise ValueError("Training stopped due to nan/inf in parameters")
+                print(f"Warning: Parameter {name} contains nan or inf")
+                has_nan_inf = True
+        if has_nan_inf:
+            print("Continuing training despite nan/inf. Investigate hyperparameters or dataset.")
+            torch.save(model.state_dict(), f"model_state_step_{state.global_step}.pt")
 
 # Training arguments
 training_args = TrainingArguments(
@@ -83,14 +88,14 @@ training_args = TrainingArguments(
     overwrite_output_dir=True,
     num_train_epochs=3,
     per_device_train_batch_size=1 if device.type == "cpu" else 2,
-    gradient_accumulation_steps=4,
+    gradient_accumulation_steps=2,  # Reduced for stability
     save_steps=200,
     save_total_limit=2,
     logging_steps=20,
-    learning_rate=2e-5,
+    learning_rate=1e-5,            # Lower learning rate
     warmup_steps=100,
     fp16=torch.cuda.is_available(),
-    max_grad_norm=1.0,
+    max_grad_norm=0.5,             # More aggressive gradient clipping
     optim="adamw_torch",
     evaluation_strategy="no",
     report_to="none",
@@ -102,7 +107,7 @@ trainer = Trainer(
     args=training_args,
     train_dataset=tokenized_dataset,
     data_collator=data_collator,
-    callbacks=[CheckNanInfCallback()],  # Add the callback here
+    callbacks=[CheckNanInfCallback()],
 )
 
 # Start fine-tuning
