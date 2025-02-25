@@ -26,6 +26,7 @@ class SafeLogitsProcessor(LogitsProcessor):
 def generate_response(prompt, max_new_tokens=100, temperature=0.7):
     inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512)
     inputs = {key: val.to(device) for key, val in inputs.items()}
+    input_length = inputs["input_ids"].shape[1]
     logits_processor = LogitsProcessorList([SafeLogitsProcessor()])
     
     try:
@@ -40,10 +41,10 @@ def generate_response(prompt, max_new_tokens=100, temperature=0.7):
                 eos_token_id=tokenizer.eos_token_id,
                 logits_processor=logits_processor,
             )
-        response = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        if "[SEP]" in response:
-            response = response.split("[SEP]")[1].strip()
-        return response
+        # Hanya ambil token yang baru digenerate (setelah prompt)
+        generated_tokens = outputs[0][input_length:]
+        response = tokenizer.decode(generated_tokens, skip_special_tokens=True)
+        return response.strip()
     except Exception as e:
         print(f"Error: {str(e)}")
         return "Sorry, an error occurred."
@@ -51,9 +52,10 @@ def generate_response(prompt, max_new_tokens=100, temperature=0.7):
 # Chat interface
 def chat_interface(user_input, history):
     if history:
-        prompt = "\n".join([f"User: {h[0]}\nBot: {h[1]}" for h in history]) + f"\nUser: {user_input}"
+        # Tambahkan marker "Bot:" untuk memandu model menghasilkan respons
+        prompt = "\n".join([f"User: {h[0]}\nBot: {h[1]}" for h in history]) + f"\nUser: {user_input}\nBot:"
     else:
-        prompt = user_input
+        prompt = f"User: {user_input}\nBot:"
     return generate_response(prompt)
 
 # Gradio UI
