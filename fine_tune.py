@@ -47,7 +47,7 @@ tokenized_dataset = dataset.map(
 # Data collator
 data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
 
-# Custom callback to check for nan/inf and log warnings
+# Custom callback to check for nan/inf
 class CheckNanInfCallback(TrainerCallback):
     def on_train_begin(self, args, state, control, **kwargs):
         print("Training begins. Checking model parameters for nan/inf...")
@@ -67,14 +67,14 @@ class CheckNanInfCallback(TrainerCallback):
             print("Continuing training despite nan/inf. Investigate hyperparameters or dataset.")
             torch.save(model.state_dict(), f"model_state_step_{state.global_step}.pt")
 
-# Training arguments
+# Training arguments with adjusted save frequency
 training_args = TrainingArguments(
     output_dir="./fine_tuned_model",
     overwrite_output_dir=True,
     num_train_epochs=3,
     per_device_train_batch_size=1 if device.type == "cpu" else 2,
     gradient_accumulation_steps=2,
-    save_steps=200,
+    save_steps=1000,  # Reduce save frequency to minimize I/O
     save_total_limit=2,
     logging_steps=20,
     learning_rate=1e-5,
