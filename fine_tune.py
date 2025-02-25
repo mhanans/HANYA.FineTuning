@@ -2,6 +2,7 @@ import torch
 from datasets import load_dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments, DataCollatorForLanguageModeling
 from peft import get_peft_model, LoraConfig, TaskType
+from transformers.trainer_callback import TrainerCallback
 
 # Set device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -61,41 +62,48 @@ tokenized_dataset = dataset.map(
 # Data collator
 data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
 
+# Custom callback to check for nan/inf
+class CheckNanInfCallback(TrainerCallback):
+    def on_train_begin(self, args, state, control, **kwargs):
+        print("Training begins. Checking model parameters for nan/inf...")
+        self.check_params(kwargs["model"])
+
+    def on_step_end(self, args, state, control, **kwargs):
+        self.check_params(kwargs["model"])
+
+    def check_params(self, model):
+        for name, param in model.named_parameters():
+            if torch.isnan(param).any() or torch.isinf(param).any():
+                print(f"Parameter {name} contains nan or inf")
+                raise ValueError("Training stopped due to nan/inf in parameters")
+
 # Training arguments
 training_args = TrainingArguments(
     output_dir="./fine_tuned_model",
     overwrite_output_dir=True,
-    num_train_epochs=3,                  # Reduced epochs to prevent overfitting
-    per_device_train_batch_size=1 if device.type == "cpu" else 2,  # Adjust for CPU/GPU
+    num_train_epochs=3,
+    per_device_train_batch_size=1 if device.type == "cpu" else 2,
     gradient_accumulation_steps=4,
     save_steps=200,
     save_total_limit=2,
     logging_steps=20,
-    learning_rate=2e-5,                  # Lower learning rate
+    learning_rate=2e-5,
     warmup_steps=100,
-    fp16=torch.cuda.is_available(),      # Enable FP16 only on GPU
-    max_grad_norm=1.0,                   # Add gradient clipping
+    fp16=torch.cuda.is_available(),
+    max_grad_norm=1.0,
     optim="adamw_torch",
     evaluation_strategy="no",
     report_to="none",
 )
 
-# Initialize trainer
+# Initialize trainer with the custom callback
 trainer = Trainer(
     model=model,
     args=training_args,
     train_dataset=tokenized_dataset,
     data_collator=data_collator,
+    callbacks=[CheckNanInfCallback()],  # Add the callback here
 )
-
-# Check for nan/inf during training
-def check_params_for_nan_inf(model):
-    for name, param in model.named_parameters():
-        if torch.isnan(param).any() or torch.isinf(param).any():
-            print(f"Parameter {name} contains nan or inf")
-            raise ValueError("Training stopped due to nan/inf in parameters")
-
-trainer.add_callback(lambda trainer: check_params_for_nan_inf(trainer.model))
 
 # Start fine-tuning
 print("Starting fine-tuning...")
