@@ -54,7 +54,7 @@ training_args = TrainingArguments(
     warmup_steps=50,  # Dikurangi dari 100 ke 50
     fp16=False,  # Nonaktifkan fp16 karena CPU-only
     optim="adamw_torch",
-    evaluation_strategy="no",
+    eval_strategy="no",
     report_to="none",
 )
 
