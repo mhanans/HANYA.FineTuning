@@ -47,8 +47,14 @@ activate_conda_env() {
 # Fungsi untuk menginstal dependensi
 install_dependencies() {
     echo "Menginstal dependensi..."
-    pip install torch --index-url https://download.pytorch.org/whl/cpu transformers datasets peft gradio pdfplumber ollama || {
-        echo "Gagal menginstal dependensi."
+    # Instal torch dari indeks khusus untuk CPU
+    pip install torch --index-url https://download.pytorch.org/whl/cpu || {
+        echo "Gagal menginstal torch."
+        exit 1
+    }
+    # Instal dependensi lainnya dari PyPI default
+    pip install transformers datasets peft gradio pdfplumber ollama || {
+        echo "Gagal menginstal dependensi lainnya."
         exit 1
     }
 }
