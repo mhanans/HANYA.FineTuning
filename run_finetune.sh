@@ -47,10 +47,24 @@ activate_conda_env() {
 # Fungsi untuk menginstal dependensi
 install_dependencies() {
     echo "Menginstal dependensi..."
-    pip install torch --index-url https://download.pytorch.org/whl/cpu transformers datasets peft gradio || {
+    pip install torch --index-url https://download.pytorch.org/whl/cpu transformers datasets peft gradio pdfplumber ollama || {
         echo "Gagal menginstal dependensi."
         exit 1
     }
+}
+
+# Fungsi untuk memeriksa dan menjalankan pembuatan .jsonl dari PDF
+generate_jsonl() {
+    echo "Memeriksa file PDF di direktori $PDF_DIR..."
+    if [ -d "$PDF_DIR" ] && [ -n "$(ls -A "$PDF_DIR"/*.pdf 2>/dev/null)" ]; then
+        echo "File PDF ditemukan. Menjalankan generate_jsonl.py..."
+        python generate_jsonl.py || {
+            echo "Gagal menjalankan generate_jsonl.py."
+            exit 1
+        }
+    else
+        echo "Tidak ada file PDF di $PDF_DIR. Melewati langkah pembuatan .jsonl."
+    fi
 }
 
 # Fungsi untuk menjalankan fine-tuning
@@ -72,10 +86,11 @@ run_gradio() {
 }
 
 # Eksekusi utama
-INSTALL_DIR="$(pwd)/install_dir"
-CONDA_ROOT="$INSTALL_DIR/conda"
-ENV_DIR="$INSTALL_DIR/env"
-PYTHON_VERSION="3.10"
+INSTALL_DIR="$(pwd)/install_dir"  # Direktori untuk instalasi
+CONDA_ROOT="$INSTALL_DIR/conda"   # Lokasi Miniconda
+ENV_DIR="$INSTALL_DIR/env"        # Lokasi environment Conda
+PYTHON_VERSION="3.10"             # Versi Python yang digunakan
+PDF_DIR="./pdfs"                  # Direktori untuk file PDF
 
 echo "******************************************************"
 echo "Menyiapkan Miniconda"
@@ -92,6 +107,11 @@ echo "******************************************************"
 echo "Menginstal dependensi"
 echo "******************************************************"
 install_dependencies
+
+echo "******************************************************"
+echo "Membuat file .jsonl dari PDF (jika ada)"
+echo "******************************************************"
+generate_jsonl
 
 echo "******************************************************"
 echo "Menjalankan fine-tuning"
