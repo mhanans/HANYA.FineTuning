@@ -59,8 +59,8 @@ def chat_interface(user_input, history):
     return generate_response(prompt)
 
 # Gradio UI
-with gr.Blocks(title="Chatbot Fine-Tuned Model") as demo:
-    gr.Markdown("# Chatbot Fine-Tuned Model\nAsk anything!")
+with gr.Blocks(title="HANYA.FT") as demo:
+    gr.Markdown("# HANYA.FT\nAsk anything!")
     chatbot = gr.Chatbot(label="Conversation")
     user_input = gr.Textbox(label="Your Question", placeholder="Type here...")
     submit_btn = gr.Button("Send")

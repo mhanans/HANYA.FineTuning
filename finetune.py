@@ -7,7 +7,7 @@ from peft import get_peft_model, LoraConfig, TaskType
 device = torch.device("cpu")
 
 # Load model dan tokenizer dengan attn_implementation="eager"
-model_name = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
+model_name = "unsloth/gemma-3-4b-it"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForCausalLM.from_pretrained(
     model_name,
