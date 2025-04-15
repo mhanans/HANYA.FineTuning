@@ -6,18 +6,22 @@ from peft import get_peft_model, LoraConfig, TaskType
 # Paksa penggunaan CPU-only
 device = torch.device("cpu")
 
-# Load model dan tokenizer
-model_name = "unsloth/gemma-3-4b-it"
+# Load model dan tokenizer dengan attn_implementation="eager"
+model_name = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16)  # Hemat memori dengan bfloat16
+model = AutoModelForCausalLM.from_pretrained(
+    model_name,
+    torch_dtype=torch.bfloat16,
+    attn_implementation="eager"  # Gunakan eager untuk stabilitas
+)
 model.to(device)
 if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
 
 # Konfigurasi LoRA untuk efisiensi
 lora_config = LoraConfig(
-    r=8,  # Rank dikurangi ke 8 untuk hemat memori
-    lora_alpha=16,  # Dikurangi dari 32 untuk efisiensi
+    r=8,
+    lora_alpha=16,
     target_modules=["q_proj", "k_proj", "v_proj"],
     lora_dropout=0.05,
     bias="none",
@@ -31,7 +35,7 @@ dataset = load_dataset('json', data_files="custom_knowledge.jsonl", split='train
 # Preprocessing dataset
 def preprocess_function(examples):
     texts = [f"{p.strip()} [SEP] {c.strip()}" for p, c in zip(examples["prompt"], examples["completion"])]
-    tokenized = tokenizer(texts, truncation=True, max_length=256, padding="max_length", return_tensors="pt")  # Max length dikurangi ke 256
+    tokenized = tokenizer(texts, truncation=True, max_length=256, padding="max_length", return_tensors="pt")
     tokenized["labels"] = tokenized["input_ids"].clone()
     return tokenized
 
@@ -44,26 +48,27 @@ data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
 training_args = TrainingArguments(
     output_dir="./fine_tuned_model",
     overwrite_output_dir=True,
-    num_train_epochs=3,  # Dikurangi dari 5 ke 3 untuk efisiensi
-    per_device_train_batch_size=1,  # Batch size 1 untuk CPU
-    gradient_accumulation_steps=8,  # Akumulasi gradien untuk batch efektif 8
-    save_steps=100,  # Simpan lebih sering untuk keamanan
+    num_train_epochs=3,
+    per_device_train_batch_size=1,
+    gradient_accumulation_steps=8,
+    save_steps=100,
     save_total_limit=2,
     logging_steps=20,
     learning_rate=5e-5,
-    warmup_steps=50,  # Dikurangi dari 100 ke 50
-    fp16=False,  # Nonaktifkan fp16 karena CPU-only
+    warmup_steps=50,
+    fp16=False,
     optim="adamw_torch",
     eval_strategy="no",
     report_to="none",
 )
 
-# Inisialisasi trainer
+# Inisialisasi trainer dengan label_names
 trainer = Trainer(
     model=model,
     args=training_args,
     train_dataset=tokenized_dataset,
     data_collator=data_collator,
+    label_names=["labels"],  # Tentukan label_names secara eksplisit
 )
 
 # Mulai fine-tuning
