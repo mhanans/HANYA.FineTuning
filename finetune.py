@@ -7,7 +7,7 @@ from peft import get_peft_model, LoraConfig, TaskType
 device = torch.device("cpu")
 
 # Load model dan tokenizer
-model_name = "google/gemma-3-4b-it"
+model_name = "unsloth/gemma-3-4b-it"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16)  # Hemat memori dengan bfloat16
 model.to(device)
