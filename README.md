@@ -17,8 +17,7 @@ Before you begin, ensure you have the following installed:
 ## Setup Instructions
 1. Clone the Repository
 If you have a Git repository, clone it to your local machine:
-
-    ''' bash
+    ```bash
     git clone https://github.com/mhanans/HANYA.FineTuning.git
     cd your-repo-name
 
@@ -28,8 +27,9 @@ Alternatively, download the project files manually and navigate to the project d
 Easily just run the all in one shell, provided by HANYA.FT that will do all the hardwork.
 
 - On Linux/MacOS/ Windows (Use Linux Env)
-    ''' bash
+    ```bash
     bash run_finetune.sh
+    
 Once activated, your terminal prompt should show (venv) to indicate you’re in the virtual environment.
 
 3. Installed Dependencies
@@ -51,7 +51,7 @@ If you’ve already fine-tuned a model and saved it (e.g., to ./fine_tuned_model
 Fine-Tuning the Model
 1. Prepare Your Dataset
 Create a JSONL file (e.g., custom_knowledge.jsonl) with your training data. Each line should be a JSON object with prompt and completion fields:
-    ''' bash
+    ```bash
     {"prompt": "What is AI?", "completion": "AI stands for Artificial Intelligence, a field of computer science focused on creating systems that can perform tasks requiring human intelligence."}
     {"prompt": "How does a chatbot work?", "completion": "A chatbot uses natural language processing and machine learning to understand and generate human-like responses based on input text."}
 
